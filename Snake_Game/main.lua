@@ -9,9 +9,9 @@ TILE_EMPTY = 0
 TILE_SNAKE_HEAD = 1
 TILE_SNAKE_BODY = 2
 TILE_APPLE = 3
+TILE_STONE = 4
 
--- time in seconds that the snake moves one tile
-SNAKE_SPEED = 0.1
+
 
 local largeFont = love.graphics.newFont(32)
 local hugeFont = love.graphics.newFont(128)
@@ -20,6 +20,13 @@ local score = 0
 local maxScore = 0
 local gameOver = false
 local gameStart = true
+local newLevel = true
+
+local level = 1
+
+
+-- time in seconds that the snake moves one tile
+SNAKE_SPEED = math.max(0.01,0.11 - (level * 0.01))
 
 local tileGrid = {}
 
@@ -45,7 +52,7 @@ function love.load()
     math.randomseed(os.time())
     initializeGrid()
     initializeSnake()
-
+ 
     tileGrid[snakeTiles[1][2]][snakeTiles[1][1]] = TILE_SNAKE_HEAD
 end
 
@@ -66,6 +73,11 @@ function love.keypressed(key)
         end
     end
 
+    if newLevel then
+        if key == 'space' then
+            newLevel = false
+        end
+    end
     if gameOver or gameStart then
         if key == 'enter' or key == 'return' then
             initializeGrid()
@@ -80,7 +92,7 @@ function love.keypressed(key)
 end
 
 function love.update(dt)
-    if not gameOver or gameStart then
+    if not gameOver and not newLevel then
         snakeTimer = snakeTimer + dt
 
         local priorHeadX, priorHeadY = snakeX, snakeY
@@ -112,11 +124,12 @@ function love.update(dt)
                 end
             end
 
+
             -- push a new head element onto the snake data structure
 
             table.insert( snakeTiles, 1, {snakeX, snakeY} )
 
-            if tileGrid[snakeY][snakeX] == TILE_SNAKE_BODY then
+            if tileGrid[snakeY][snakeX] == TILE_SNAKE_BODY or tileGrid[snakeY][snakeX] == TILE_STONE then
 
                 gameOver = true
 
@@ -126,9 +139,17 @@ function love.update(dt)
             if tileGrid[snakeY][snakeX] == TILE_APPLE then
                 score = score + 1
 
-                local newAppleX, newAppleY = math.random(MAX_TILES_X), math.random(MAX_TILES_Y)
-                tileGrid[newAppleY][newAppleX] = TILE_APPLE
-            
+                if score > level * level * 3 then
+                    level = level + 1
+                    SNAKE_SPEED = math.max(0.01,0.11 - (level * 0.01))
+                    newLevel = true
+
+                    initializeGrid()
+                    initializeSnake()
+                    return
+                end
+                generateObstracle(TILE_APPLE)
+
             else
 
                 local tail = snakeTiles[#snakeTiles]
@@ -137,12 +158,15 @@ function love.update(dt)
             
             end
 
-            if #snakeTiles > 1 then
-                tileGrid[priorHeadY][priorHeadX] = TILE_SNAKE_BODY
-            end
+            if not gameOver then
 
-            tileGrid[snakeY][snakeX] = TILE_SNAKE_HEAD
+                if #snakeTiles > 1 then
+                    tileGrid[priorHeadY][priorHeadX] = TILE_SNAKE_BODY
+                end
+
+                tileGrid[snakeY][snakeX] = TILE_SNAKE_HEAD
             
+            end
                 
 
 
@@ -183,13 +207,21 @@ function love.draw()
         love.graphics.printf("SNAKE", 0, WINDOWS_HEIGHT/2-64, WINDOW_WIDTH,'center')
         love.graphics.setFont(largeFont)
         love.graphics.printf('Press enter to start', 0, WINDOWS_HEIGHT/2 + 96, WINDOW_WIDTH, 'center' )
+
     else
         drawGrid()
     --  drawSnake()
         love.graphics.setColor(1,1,1,1)
         love.graphics.print('Score : '.. tostring(score), 10, 10)
+        love.graphics.print('Level : '.. tostring(level), 550, 10)
         love.graphics.print('Max Score : '.. tostring(maxScore),1000, 10)
-        if gameOver then 
+
+        if newLevel then
+            love.graphics.setFont(hugeFont)
+            love.graphics.printf("LEVEL " .. tostring(level), 0, WINDOWS_HEIGHT/2-64, WINDOW_WIDTH,'center')
+            love.graphics.setFont(largeFont)
+            love.graphics.printf('Press space to start', 0, WINDOWS_HEIGHT/2 + 96, WINDOW_WIDTH, 'center' )
+        elseif gameOver then 
             drawGameOver()
         end
     end    
@@ -220,6 +252,9 @@ function drawGrid()
             elseif tileGrid[y][x] == TILE_SNAKE_BODY then
                 love.graphics.setColor(0,0.5,0,1)
                 drawAS(x,y)
+            elseif tileGrid[y][x] == TILE_STONE then
+                love.graphics.setColor(1,1,1,1)
+                drawAS(x,y)
             end
         end
     end
@@ -243,9 +278,12 @@ function initializeGrid()
         end
     end
 
-    local appleX, appleY = math.random(MAX_TILES_X), math.random(MAX_TILES_Y) 
+    for y = 1, math.min(50, level * 2) do
+        generateObstracle(TILE_STONE)
+    end
 
-    tileGrid[appleY][appleX] = TILE_APPLE
+    generateObstracle(TILE_APPLE)
+
 end
 
 function drawAS(x,y)
@@ -258,4 +296,15 @@ function initializeSnake()
     snakeTiles = {
         {snakeX, snakeY}
     }
+    tileGrid[snakeTiles[1][2]][snakeTiles[1][1]] = TILE_SNAKE_HEAD
+end
+
+function generateObstracle(obstracle)
+
+    local obstracleX, obstracleY 
+    repeat
+        obstracleX, obstracleY = math.random( MAX_TILES_X ), math.random( MAX_TILES_Y )
+    until tileGrid[obstracleY][obstracleX] == TILE_EMPTY 
+
+    tileGrid[obstracleY][obstracleX] = obstracle
 end
